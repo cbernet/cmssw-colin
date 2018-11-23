@@ -1,10 +1,12 @@
 import ROOT
 ROOT.gROOT.SetBatch()
 
+import numpy as np
+import ctypes
 
 class ElectronMVAID:
 
-    def __init__(self,name,tag,flavor,*xmls):
+    def __init__(self, name, tag, flavor, *xmls):
         self.name = name
         self.tag = tag
         self.flavor = flavor
@@ -12,8 +14,9 @@ class ElectronMVAID:
         for x in xmls: self.sxmls.push_back(x)
         self._init = False
 
-    def __call__(self,ele,event,vtx,rho,debug=False):
+    def __call__(self, ele, debug=False):
         if not self._init:
+            print 'initializing electron mva id'
             ROOT.gSystem.Load("libRecoEgammaElectronIdentification")
             debug = False
             variableDefinition = 'RecoEgamma/ElectronIdentification/data/ElectronMVAEstimatorRun2Variables.txt'
@@ -35,7 +38,11 @@ class ElectronMVAID:
                 )
             self.estimator.init(self.sxmls)
             self._init = True
-        return self.estimator.mvaValue(ele,event)
+        category = ctypes.c_int(0)
+        extra_vars = ROOT.vector(float)()
+        for var in [1.,1.,1.]:
+            extra_vars.push_back(var)
+        return self.estimator.mvaValue(ele, extra_vars, category)
 
 eleid_Fall17IsoV2 = ElectronMVAID(
     "ElectronMVAEstimatorRun2Fall17V2","V2","Iso",
@@ -51,8 +58,8 @@ from DataFormats.FWLite import Events, Handle
 
 print 'open input file...'
 
-# events = Events('root://cms-xrd-global.cern.ch//store/mc/RunIIFall17MiniAODv2/VBFHToTauTau_M125_13TeV_powheg_pythia8/MINIAODSIM/PU2017_12Apr2018_94X_mc2017_realistic_v14-v1/90000/549B2DC8-C443-E811-9DAF-A0369FE2C17C.root')
-events = Events('test.root')
+events = Events('root://cms-xrd-global.cern.ch//store/mc/RunIIFall17MiniAODv2/VBFHToTauTau_M125_13TeV_powheg_pythia8/MINIAODSIM/PU2017_12Apr2018_94X_mc2017_realistic_v14-v1/90000/549B2DC8-C443-E811-9DAF-A0369FE2C17C.root')
+# events = Events('test.root')
 
 ele_handle = Handle('std::vector<pat::Electron>')
 vtx_handle = Handle('std::vector<reco::Vertex>')
@@ -63,16 +70,12 @@ accepted = 0
 for i,event in enumerate(events): 
     event.getByLabel(('slimmedElectrons'),ele_handle)
     electrons = ele_handle.product()
-    event.getByLabel(('offlineSlimmedPrimaryVertices'), vtx_handle)
-    vertices = vtx_handle.product()
-    event.getByLabel(('fixedGridRhoFastjetAll'), rho_handle)
-    rho = rho_handle.product()
     if not len(electrons):
         continue
-    #     import pdb; pdb.set_trace()
     accepted += 1
     print accepted
-    mva = eleid_Fall17IsoV2(electrons[0], event, vertices[0], rho)
+    mva = eleid_Fall17IsoV2(electrons[0], event, )
+    print 'mva=', mva
     if accepted==100: 
         break
 
